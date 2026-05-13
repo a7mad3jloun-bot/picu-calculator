@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Playables SDK -->
+<script>// Playables SDK v1.0.0
+// Game lifecycle bridge: rAF-based game-ready detection + event communication
+(function() {
+  'use strict';
+
+  // Idempotency: skip if already initialized (e.g., server-side injection
+  // followed by client-side inject-javascript via the Bloks webview component).
+  if (window.playablesSDK) return;
+
+  var HANDLER_NAME = 'playablesGameEventHandler';
+  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
+  var RAF_FRAME_THRESHOLD = 3;
+
+  var gameReadySent = false;
+  var firstInteractionSent = false;
+  var errorSent = false;
+  var frameCount = 0;
+  var originalRAF = window.requestAnimationFrame;
+
+  // --- Transport Layer ---
+
+  function hasIOSBridge() {
+    return !!(window.webkit &&
+              window.webkit.messageHandlers &&
+              window.webkit.messageHandlers[HANDLER_NAME]);
+  }
+
+  function hasAndroidBridge() {
+    return !!(window[ANDROID_BRIDGE_NAME] &&
+              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
+  }
+
+  function isInIframe() {
+    return !!(window.parent && window.parent !== window);
+  }
+
+  function sendEvent(eventName, payload) {
+    var message = {
+      type: eventName,
+      payload: payload || {},
+      timestamp: Date.now()
+    };
+
+    if (hasIOSBridge()) {
+      try {
+        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
+      } catch (e) { /* ignore */ }
+      return;
+    }
+
+    if (hasAndroidBridge()) {
+    try {
+      var p = payload || {};
+      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
+      p.timestamp = message.timestamp;
+      window[ANDROID_BRIDGE_NAME].postEvent(
+        eventName,
+        JSON.stringify(p)
+      );
+    } catch (e) { /* ignore */ }
+    return;
+  }
+
+    if (isInIframe()) {
+      try {
+        window.parent.postMessage(message, '*');
+      } catch (e) { /* ignore */ }
+      return;
+    }
+  }
+
+  // --- rAF Game-Ready Detection ---
+
+  function onFrame() {
+    if (gameReadySent) return;
+
+    frameCount++;
+    if (frameCount >= RAF_FRAME_THRESHOLD) {
+      gameReadySent = true;
+      sendEvent('game_ready', {
+        frame_count: frameCount,
+        detected_at: Date.now()
+      });
+      return;
+    }
+
+    originalRAF.call(window, onFrame);
+  }
+
+  if (originalRAF) {
+    window.requestAnimationFrame = function(callback) {
+      if (!gameReadySent) {
+        return originalRAF.call(window, function(timestamp) {
+          frameCount++;
+          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
+            gameReadySent = true;
+            sendEvent('game_ready', {
+              frame_count: frameCount,
+              detected_at: Date.now()
+            });
+          }
+          callback(timestamp);
+        });
+      }
+      return originalRAF.call(window, callback);
+    };
+  }
+
+  // --- First User Interaction Detection ---
+
+  function setupFirstInteractionDetection() {
+    var events = ['touchstart', 'mousedown', 'keydown'];
+
+    function onFirstInteraction() {
+      if (firstInteractionSent) return;
+      firstInteractionSent = true;
+      sendEvent('user_interaction_start', null);
+
+      for (var i = 0; i < events.length; i++) {
+        document.removeEventListener(events[i], onFirstInteraction, true);
+      }
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      document.addEventListener(events[i], onFirstInteraction, true);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
+  } else {
+    setupFirstInteractionDetection();
+  }
+
+  // --- Auto Error Capture ---
+
+  window.addEventListener('error', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    sendEvent('error', {
+      message: event.message || 'Unknown error',
+      source: event.filename || '',
+      lineno: event.lineno || 0,
+      colno: event.colno || 0,
+      auto_captured: true
+    });
+  });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    var reason = event.reason;
+    sendEvent('error', {
+      message: (reason instanceof Error) ? reason.message : String(reason),
+      type: 'unhandled_promise_rejection',
+      auto_captured: true
+    });
+  });
+
+  // --- Public API ---
+
+  window.playablesSDK = {
+    complete: function(score) {
+      sendEvent('game_ended', {
+        score: score,
+        completed: true
+      });
+    },
+
+    error: function(message) {
+      if (errorSent) return;
+      errorSent = true;
+      sendEvent('error', {
+        message: message || 'Unknown error',
+        auto_captured: false
+      });
+    },
+
+    sendEvent: function(eventName, payload) {
+      if (!eventName || typeof eventName !== 'string') return;
+      sendEvent(eventName, payload);
+    }
+  };
+
+  // Kick off rAF detection in case no game code calls rAF immediately
+  if (originalRAF) {
+    originalRAF.call(window, onFrame);
+  }
+})();</script>
+<script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ahmad Qudah | PICU Calculator Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { overscroll-behavior: none; touch-action: manipulation; background: #0f172a; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 50%{transform:translateX(8px)} 75%{transform:translateX(-4px)} }
+    .shake { animation: shake 0.5s ease-in-out; }
+    .pulse-yellow { animation: pulse 1.5s ease-in-out infinite; }
+    .slide-in { animation: slideUp 0.3s ease-out; }
+    @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+<body class="bg-[#0f172a] text-slate-200 min-h-screen">
+<div id="error-catcher" style="position:fixed; top:0; left:0; right:0; bottom:0; background:#0f172a; color:#ef4444; z-index:99999; padding:20px; font-family:monospace; overflow-y:auto; display:none;"></div>
+<script>
+window.onerror = function(msg, url, line) {
+  var el = document.getElementById('error-catcher');
+  if (el) {
+    el.style.display = 'block';
+    el.innerHTML += '<p style="margin-bottom:10px; border-bottom:1px solid #334155; padding-bottom:10px;"><b>❌ ERROR:</b> ' + msg + '<br><b>Line:</b> ' + line + '</p>';
+  }
+  return true;
+};
+</script>
+
+<div id="app" class="max-w-6xl mx-auto p-4 pb-24"></div>
+<script>
+// =============================================
+// 1. تحميل بيانات الأدوية المشفرة من GitHub
+// =============================================
+const DATA_URL = 'https://raw.githubusercontent.com/a7mad3jloun-bot/PICU-med/refs/heads/main/medications.enc';
+const ENCRYPTION_KEY = 'AHMAD_MASTER_2026';
+let medications = [];
+async function loadMedications() {
+  try {
+    console.log('🔍 Fetching encrypted data from:', DATA_URL);
+    const response = await fetch(DATA_URL);
+    if (!response.ok) throw new Error('Server error: ' + response.status);
+    
+    // قراءة الملف كنص (Base64 string)
+    const encryptedBase64 = (await response.text()).trim();
+    console.log('📄 Encrypted string length:', encryptedBase64.length);
+    console.log('🔑 Using key:', ENCRYPTION_KEY);
+    
+    // فك التشفير مباشرة - نفس طريقة التشفير بالضبط
+    const decryptedBytes = CryptoJS.AES.decrypt(encryptedBase64, ENCRYPTION_KEY);
+    const jsonString = decryptedBytes.toString(CryptoJS.enc.Utf8);
+    
+    if (!jsonString) {
+      throw new Error('Decryption failed - wrong key or corrupted file');
+    }
+    
+    console.log('✅ Decryption successful, JSON length:', jsonString.length);
+    medications = JSON.parse(jsonString);
+    console.log('💊 Medications loaded:', medications.length);
+    processMedications();
+    
+  } catch (e) {
+    console.error('❌ Medication load failed:', e.message);
+    console.error('Stack:', e.stack);
+    alert('⚠️ Failed to load drug data:\n' + e.message + '\n\nUsing backup.');
+    medications = V11_BACKUP;
+    processMedications();
+  }
+}
+function processMedications() {
+  const grouped = {};
+  medications.forEach(m => {
+    if (!grouped[m.drug_name]) grouped[m.drug_name] = [];
+    grouped[m.drug_name].push(m);
+  });
+  groupedDrugs = grouped;
+  drugNames = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+  render();
+}
+
+async function loadMedications() {
+  try {
+    const response = await fetch(DATA_URL);
+    if (!response.ok) throw new Error('Server error: ' + response.status);
+    const encryptedBase64 = (await response.text()).trim();
+    const decryptedBytes = CryptoJS.AES.decrypt(encryptedBase64, ENCRYPTION_KEY);
+    const jsonString = decryptedBytes.toString(CryptoJS.enc.Utf8);
+    if (!jsonString) throw new Error('Decryption failed – wrong key?');
+    medications = JSON.parse(jsonString);
+    processMedications();
+  } catch (e) {
+    console.error('❌ Medication load failed:', e.message);
+    alert('⚠️ Failed to load drug data:\n' + e.message + '\n\nPlease check your internet connection and try again.');
+    // لا توجد بيانات احتياطية - التطبيق لن يعمل بدون تحميل ناجح
+  }
+}
+// =============================================
+// 2. المحرك الطبي الذهبي (MedicalEngine V10.0)
+// =============================================
+class MedicalEngine {
+  parseUnitString(unitString) {
+    let baseUnit = '', hasKg = false, timeFactor = 0;
+    if (!unitString) return { baseUnit, hasKg, timeFactor };
+    let u = unitString.toLowerCase();
+    if (u.includes('/kg')) hasKg = true;
+    if (u.includes('/min')) timeFactor = 60;
+    else if (u.includes('/hr')) timeFactor = 1;
+    if (u.includes('mcg')) baseUnit = 'mcg';
+    else if (u.includes('mg')) baseUnit = 'mg';
+    else if (u.includes('units') || u.includes('iu')) baseUnit = 'units';
+    else if (u.includes('milliunits')) baseUnit = 'milliunits';
+    return { baseUnit, hasKg, timeFactor };
+  }
+  calculateConcentration(amount, volume, unit) {
+    if (volume <= 0 || amount <= 0) throw new Error("MissingData");
+    return { value: amount / volume, unit: unit.toLowerCase() + '/mL' };
+  }
+  calculate(params) {
+    let result = { rawResult: null, roundedResult: null, calculatedDose: null, warnings: [], error: null, displayMode: "" };
+    try {
+      const { dose, weight, unit, totalDrugAmount, totalVolume, totalDrugUnit, maxDose, isContinuous } = params;
+      const conc = this.calculateConcentration(totalDrugAmount, totalVolume, totalDrugUnit);
+      const doseInfo = this.parseUnitString(unit);
+      const drugInfo = this.parseUnitString(totalDrugUnit);
+      let unitConv = 1;
+      if (doseInfo.baseUnit === 'mcg' && drugInfo.baseUnit === 'mg') unitConv = 0.001;
+      else if (doseInfo.baseUnit === 'mg' && drugInfo.baseUnit === 'mcg') unitConv = 1000;
+      else if (doseInfo.baseUnit === 'milliunits' && drugInfo.baseUnit === 'units') unitConv = 0.001;
+      else if (doseInfo.baseUnit === 'units' && drugInfo.baseUnit === 'milliunits') unitConv = 1000;
+      let weightFactor = doseInfo.hasKg ? weight : 1;
+      let effectiveDose = dose * weightFactor * unitConv;
+      let finalRate;
+      if (isContinuous && doseInfo.timeFactor !== 0) {
+        finalRate = (effectiveDose * doseInfo.timeFactor) / conc.value;
+        result.displayMode = "Rate (mL/hr)";
+      } else {
+        finalRate = effectiveDose / conc.value;
+        result.displayMode = "Dose Volume (mL)";
+      }
+      result.rawResult = finalRate;
+      result.roundedResult = Number(finalRate.toFixed(2));
+      result.calculatedDose = effectiveDose;
+      if (maxDose) {
+        const patientMax = maxDose * weightFactor;
+        if (effectiveDose > (patientMax + 0.0001)) {
+          result.warnings.push(`DANGER: Max Dose Exceeded! (Calc: ${effectiveDose.toFixed(3)}, Pt Max: ${patientMax.toFixed(3)} ${doseInfo.baseUnit})`);
+        }
+      }
+    } catch (e) {
+      result.error = e.message === "MissingData" ? "Missing Drug Amount or Volume" : e.message;
+    }
+    return result;
+  }
+  reverseBolus(params) {
+    const { dose, weight, unit, totalDrugAmount, totalVolume, totalDrugUnit, maxDose, minDose } = params;
+    if (!totalVolume || !totalDrugAmount) return { error: "Missing Drug Amount or Volume" };
+    const doseVal = parseFloat(dose);
+    const weightVal = parseFloat(weight);
+    if (isNaN(doseVal) || isNaN(weightVal) || totalVolume <= 0) return { error: "Invalid inputs" };
+
+    const doseInfo = this.parseUnitString(unit);
+    const drugInfo = this.parseUnitString(totalDrugUnit);
+    const weightFactor = doseInfo.hasKg ? weightVal : 1;
+    const effectiveDose = doseVal * weightFactor;
+
+    // تحويل الوحدات
+    let concentration = totalDrugAmount / totalVolume;
+    if (doseInfo.baseUnit === 'mcg' && drugInfo.baseUnit === 'mg') concentration *= 1000;
+    else if (doseInfo.baseUnit === 'mg' && drugInfo.baseUnit === 'mcg') concentration /= 1000;
+
+    const volumeToDraw = effectiveDose / concentration;
+
+    let error = null;
+    let warning = null;
+
+    // صمام الأمان: فحص الحد الأعلى
+    if (maxDose) {
+      const patientMax = maxDose * weightFactor;
+      if (effectiveDose > patientMax) {
+        error = "DANGER: Max Dose Exceeded! (Calc: " + effectiveDose.toFixed(3) + ", Pt Max: " + patientMax.toFixed(3) + " " + doseInfo.baseUnit + ")";
+      }
+    }
+
+    // صمام الأمان: فحص الحد الأدنى
+    if (minDose) {
+      const patientMin = minDose * weightFactor;
+      if (effectiveDose < patientMin) {
+        warning = "Low Dose Alert! (Calc: " + effectiveDose.toFixed(3) + ", Pt Min: " + patientMin.toFixed(3) + " " + doseInfo.baseUnit + ") - Renal/Hepatic Adjustment?";
+      }
+    }
+
+    return { volume: volumeToDraw.toFixed(2), raw: volumeToDraw, doseGiven: effectiveDose.toFixed(3), unit: doseInfo.baseUnit, error, warning };
+  }
+
+  reverseInfusion(params) {
+    const { rate, weight, unit, totalDrugAmount, totalVolume, totalDrugUnit } = params;
+    if (!totalVolume || !totalDrugAmount) return { error: "Missing Drug Amount or Volume" };
+    const rateVal = parseFloat(rate);
+    const weightVal = parseFloat(weight);
+    if (isNaN(rateVal) || isNaN(weightVal) || totalVolume <= 0) return { error: "Invalid inputs" };
+
+    const doseInfo = this.parseUnitString(unit);
+    const drugInfo = this.parseUnitString(totalDrugUnit);
+    let concentration = totalDrugAmount / totalVolume;
+    if (doseInfo.baseUnit === 'mcg' && drugInfo.baseUnit === 'mg') concentration *= 1000;
+    else if (doseInfo.baseUnit === 'mg' && drugInfo.baseUnit === 'mcg') concentration /= 1000;
+
+    const timeFactor = doseInfo.timeFactor;
+    const actualDose = (rateVal * concentration) / (weightVal * timeFactor);
+
+    return { dose: actualDose.toFixed(4), raw: actualDose, unit: doseInfo.baseUnit, rate: rateVal, concentration: concentration };
+  }
+}
+
+// =============================================
+// 3. التطبيق الرئيسي
+// =============================================
+const engine = new MedicalEngine();
+let groupedDrugs = {};
+let drugNames = [];
+let selectedDrugName = '';
+let selectedDrug = null;
+let calcMode = 'normal';
+let sortedDrugs = [];
+let historyLog = [];
+let soundEnabled = true;
+let audioCtx = null;
+
+const appEl = document.getElementById('app');
+
+function getBaseUnit(unitStr) { return (unitStr || '').split('/')[0]; }
+function getBaseUnitOnly(unitStr) {
+  if (!unitStr) return '';
+  return unitStr.split('/')[0];
+}
+
+function getPrepInstruction(displayNote) {
+  if (!displayNote) return '';
+  const prepMatch = displayNote.match(/Prep:\s*(.+?)(?:\s*\|)?$/);
+  if (prepMatch && prepMatch[1].trim()) {
+    return prepMatch[1].trim();
+  }
+  return '';
+}
+function playBeep(type) {
+  if (!soundEnabled) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.frequency.value = type === 'error' ? 800 : 500;
+    o.type = type === 'error' ? 'square' : 'sine';
+    g.gain.value = type === 'error' ? 0.2 : 0.1;
+    o.start(); o.stop(audioCtx.currentTime + (type === 'error' ? 0.3 : 0.15));
+  } catch {}
+}
+function saveHistory() { localStorage.setItem('picu_history_log', JSON.stringify(historyLog)); }
+
+const saved = localStorage.getItem('picu_history_log');
+if (saved) { try { historyLog = JSON.parse(saved); } catch {} }
+
+// ========== RENDER ==========
+function render() {
+  const isAuth = sessionStorage.getItem('picu_auth') === 'true';
+  if (!isAuth) { renderActivation(); return; }
+  renderMain();
+}
+
+function renderActivation() {
+  let deviceId = localStorage.getItem('picu_device_id');
+  if (!deviceId) {
+    const nav = navigator;
+    const screen = window.screen;
+    const rawId = [nav.userAgent, screen.width, screen.height, screen.colorDepth, new Date().getTimezoneOffset()].join('|');
+    let hash = 0;
+    for (let i = 0; i < rawId.length; i++) { hash = ((hash << 5) - hash) + rawId.charCodeAt(i); hash |= 0; }
+    deviceId = 'PICU-' + Math.abs(hash).toString(16).toUpperCase().slice(0, 8);
+    localStorage.setItem('picu_device_id', deviceId);
+  }
+
+  appEl.innerHTML = `
+    <div class="min-h-screen flex items-center justify-center p-4">
+      <div class="w-full max-w-md bg-[#1e293b] rounded-3xl p-8 border border-slate-700 shadow-2xl text-center space-y-4">
+        <div class="bg-gradient-to-br from-yellow-400 to-amber-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto shadow-lg"><span class="text-3xl">🔐</span></div>
+        <h1 class="text-2xl font-black text-white uppercase">Ahmad Qudah Medications Calculations</h1>
+        <p class="text-slate-400 text-sm font-bold">Ahmad Qudah Medications Calculations</p>
+        
+        <div class="bg-slate-800 rounded-xl p-4 border border-slate-600 text-left">
+          <p class="text-[10px] text-slate-500 uppercase font-black mb-2 tracking-widest">Device Unique Identifier</p>
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-emerald-400 font-mono text-sm font-bold select-all">${deviceId}</p>
+            <button id="copyIdBtn" class="bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-wider transition-colors">Copy</button>
+          </div>
+        </div>
+
+        <div class="bg-yellow-500/10 rounded-xl p-4 border border-yellow-500/30">
+          <p class="text-yellow-400 font-bold text-xs mb-2 flex items-center justify-center gap-1"><span>🔑</span> Get Activation Key</p>
+          <p class="text-slate-400 text-[11px] leading-relaxed">Send your <span class="text-white font-bold">Device ID</span> to the developer to receive your unique, encrypted activation key.</p>
+        </div>
+
+        <button onclick="window.open('https://wa.me/962782088812','_blank')" class="w-full bg-green-600 hover:bg-green-500 text-white font-black text-xs h-12 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg">
+          <span>💬</span> CONTACT VIA WHATSAPP
+        </button>
+
+        <div class="bg-slate-800/50 rounded-xl p-3 border border-slate-700/50">
+          <div class="flex items-center justify-center gap-2">
+            <span class="text-slate-400 text-lg">👨‍⚕️</span>
+            <div class="text-left">
+              <p class="text-white font-bold text-xs">Ahmad Qudah</p>
+              <p class="text-slate-400 text-[10px] mt-1">a7mad3jloun@yahoo.com</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Enter Activation Key</label>
+          <input id="apiKeyInput" type="text" placeholder="XXXX-XXXX-XXXX-XXXX" class="w-full bg-[#0f172a] border border-slate-600 text-white h-12 text-center text-lg rounded-xl tracking-widest uppercase focus:ring-2 focus:ring-yellow-500 outline-none font-mono">
+        </div>
+        <p id="authError" class="text-red-500 text-[10px] font-bold hidden">⛔ Key Invalid or Expired</p>
+        <button id="activateBtn" class="w-full h-12 bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-black font-black text-sm uppercase tracking-widest rounded-xl shadow-xl transition-all">Activate System</button>
+        <p class="text-[8px] text-slate-600 uppercase font-bold mt-2">Advanced Encryption &copy; 2026 Ahmad Qudah. All Rights Reserved.</p>
+      </div>
+    </div>
+    <footer class="text-center text-[10px] text-slate-600 mt-6 pt-4 border-t border-slate-800">This application is designed for congenital cardiac ICU | v1.0 | By Ahmad Qudah</footer>
+`;
+
+  const copyIdBtnEl = document.getElementById('copyIdBtn');
+  if (copyIdBtnEl) {
+    copyIdBtnEl.addEventListener('click', () => {
+      navigator.clipboard.writeText(deviceId).then(() => alert('Device ID Copied!'));
+    });
+  }
+
+  const activateBtnEl = document.getElementById('activateBtn');
+  if (activateBtnEl) {
+    activateBtnEl.addEventListener('click', () => {
+      const key = document.getElementById('apiKeyInput').value.trim().toUpperCase();
+      if (validateKey(key, deviceId)) {
+        sessionStorage.setItem('picu_auth', 'true');
+        render();
+      } else {
+        const authErrorEl = document.getElementById('authError');
+        if (authErrorEl) authErrorEl.classList.remove('hidden');
+      }
+    });
+  }
+}
+
+function validateKey(key, deviceId) {
+  if (key === 'AHMAD_MASTER_2026') return true;
+  try {
+    const parts = key.split('-');
+    if (parts.length !== 4) return false;
+    if (parts.some(p => p.length !== 4)) return false;
+    const cleanKey = key.replace(/-/g, '');
+    let decodedDevicePart = '';
+    const shift = cleanKey.charCodeAt(0) % 16;
+    for (let i = 1; i < 9; i++) {
+      const charCode = cleanKey.charCodeAt(i) - shift;
+      decodedDevicePart += String.fromCharCode(charCode);
+    }
+    return deviceId.slice(-7) === decodedDevicePart.trim().slice(-7);
+  } catch (e) {
+    return false;
+  }
+}
+
+function renderMain() {
+  let historyHTML = historyLog.length === 0
+    ? '<p class="text-slate-500 text-xs text-center py-8">No calculations yet.</p>'
+    : historyLog.map(h=>`<div class="p-3 bg-slate-900/50 rounded-lg border border-slate-800 text-[11px]"><div class="flex justify-between font-black text-emerald-400"><span>${h.drugName}</span><span>${h.timestamp}</span></div><p class="text-slate-500 mt-1">Wt: ${h.weight}kg | Dose: ${h.dose} | Result: ${h.result} ${h.unit}</p></div>`).join('');
+
+  appEl.innerHTML = `
+    <header class="flex justify-between items-center mb-4 border-b border-slate-800 pb-4">
+      <h1 class="text-xl font-black text-white flex items-center gap-2">⚕️ Ahmad Qudah Medications Calculations</h1>
+      <div class="flex gap-2">
+        <button id="soundToggleBtn" class="p-2 bg-slate-800 rounded-lg text-slate-400">${soundEnabled ? '🔊' : '🔇'}</button>
+        <button id="historyToggleBtn" class="p-2 bg-slate-800 rounded-lg text-slate-400">📋</button>
+        <button id="auditBtn" class="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors" title="Run Full Audit">🩺</button>
+      </div>
+    </header>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div class="lg:col-span-5 space-y-4">
+        <div class="bg-[#1e293b] rounded-2xl p-4 border border-slate-700 shadow-xl">
+          <div class="relative mb-3">
+            <input id="searchInput" type="text" placeholder="Search drug..." class="w-full bg-[#0f172a] border border-slate-600 h-12 pl-10 rounded-xl text-white font-bold outline-none focus:ring-2 focus:ring-emerald-500">
+            <span class="absolute left-3 top-3.5 text-slate-500">🔍</span>
+            <div id="searchResults" class="absolute z-50 w-full mt-1 bg-[#1e293b] border border-slate-600 rounded-xl max-h-60 overflow-y-auto hidden"></div>
+          </div>
+          <div id="drugList" class="max-h-40 overflow-y-auto border border-slate-700 rounded-xl mb-4"></div>
+          <div id="drugDetail" class="hidden space-y-3"></div>
+        </div>
+      </div>
+      <div class="lg:col-span-7">
+        <div class="bg-[#1e293b] rounded-2xl p-6 border border-slate-700 shadow-xl h-full min-h-[400px] flex flex-col items-center justify-center">
+          <div id="resultsPanel" class="w-full hidden"></div>
+          <div id="historyPanel" class="w-full space-y-2 max-h-[400px] overflow-y-auto hidden">${historyHTML}</div>
+          <div id="placeholderPanel" class="text-center text-slate-600 opacity-20">
+            <div class="text-6xl mb-4">🧮</div>
+            <p class="font-black uppercase text-sm">Ready to Calculate</p>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  const drugListEl = document.getElementById('drugList');
+  drugListEl.innerHTML = drugNames.map(name => `
+    <button class="drug-name-btn w-full text-left p-2 text-xs break-words whitespace-normal border-b border-slate-800 hover:bg-slate-800 text-slate-300 ${selectedDrugName===name?'bg-emerald-500/20 text-emerald-400 font-black':''}" data-name="${name}">${name}</button>
+  `).join('');
+
+  const soundToggleBtnEl = document.getElementById('soundToggleBtn');
+  if (soundToggleBtnEl) {
+    soundToggleBtnEl.addEventListener('click', ()=>{ soundEnabled = !soundEnabled; soundToggleBtnEl.innerHTML = soundEnabled ? '🔊' : '🔇'; });
+  }
+
+  const historyToggleBtnEl = document.getElementById('historyToggleBtn');
+  if (historyToggleBtnEl) {
+    historyToggleBtnEl.addEventListener('click', showDedication);
+  }
+
+  const auditBtnEl = document.getElementById('auditBtn');
+  if (auditBtnEl) {
+    auditBtnEl.addEventListener('click', showReferences);
+  }
+
+  document.querySelectorAll('.drug-name-btn').forEach(btn => btn.addEventListener('click', function(){ selectedDrugName = this.dataset.name; selectedDrug = null; renderMain(); }));
+
+  const searchInputEl = document.getElementById('searchInput');
+  if (searchInputEl) {
+  searchInputEl.addEventListener('input', function(){
+    const term = this.value.trim().toLowerCase();
+    const resultsEl = document.getElementById('searchResults');
+    if (!term) { resultsEl.classList.add('hidden'); return; }
+    const filtered = drugNames.filter(n => n.toLowerCase().includes(term)).slice(0, 30);
+    resultsEl.innerHTML = filtered.map(n => `<button class="search-item w-full text-left p-2 hover:bg-slate-700 border-b border-slate-700 font-bold text-sm" data-name="${n}">${n}</button>`).join('');
+    resultsEl.classList.remove('hidden');
+    document.querySelectorAll('.search-item').forEach(b => b.addEventListener('click', function(){ selectedDrugName = this.dataset.name; selectedDrug = null; document.getElementById('searchInput').value = ''; resultsEl.classList.add('hidden'); renderMain(); }));
+  });
+  }
+
+  if (selectedDrugName) renderDrugDetail();
+}
+
+function renderDrugDetail() {
+  const detailEl = document.getElementById('drugDetail');
+  if (!detailEl) return;
+  const drugs = groupedDrugs[selectedDrugName] || [];
+
+  // تصحيح: أدوية متقطعة تعرض IV intermittent بدل IV infusion
+  drugs.forEach(d => {
+    if (d && !d.is_continuous && d.route && d.route.toLowerCase().includes('iv infusion')) {
+      d.route = d.route.replace(/IV infusion/i, 'IV intermittent infusion');
+    }
+  });
+  if (selectedDrug && !selectedDrug.is_continuous && selectedDrug.route && selectedDrug.route.toLowerCase().includes('iv infusion')) {
+    selectedDrug.route = selectedDrug.route.replace(/IV infusion/i, 'IV intermittent infusion');
+  }
+  
+  const ageGroups = {};
+  drugs.forEach(d => {
+    const age = d.age_group || 'General';
+    if (!ageGroups[age]) ageGroups[age] = [];
+    ageGroups[age].push(d);
+  });
+
+  const ageOrder = ['Neonate', 'Neonate/Child', 'Child 1-11 months', 'Child 1 month-11 years', 'Child 2-17 years', 'Child 3 months-17 years', 'Child 12-17 years', 'Child', 'All ages', 'General'];
+  const sortedAges = Object.keys(ageGroups).sort((a, b) => {
+    const idxA = ageOrder.findIndex(x => a.includes(x) || x.includes(a));
+    const idxB = ageOrder.findIndex(x => b.includes(x) || x.includes(b));
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  const ageColors = {
+    'Neonate': 'from-purple-500 to-pink-500',
+    'Child': 'from-cyan-500 to-blue-500',
+    'All ages': 'from-emerald-500 to-teal-500'
+  };
+
+  detailEl.classList.remove('hidden');
+  detailEl.innerHTML = `
+    <div class="bg-slate-800/30 backdrop-blur-sm rounded-2xl p-4 border border-slate-700/30 mb-3">
+      ${selectedDrug ? `
+        <div id="selectedProtocolHeader" class="flex items-center gap-3 cursor-pointer" onclick="toggleProtocolList()">
+          <div class="bg-gradient-to-br from-emerald-500 to-teal-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+            <span class="text-white font-black text-sm">📋</span>
+          </div>
+          <div class="flex-1">
+            <p class="text-white font-black text-sm">${selectedDrug.indication}</p>
+            <p class="text-slate-500 text-[10px]">${selectedDrug.age_group} | ${selectedDrug.route}</p>
+          </div>
+          <div class="text-slate-400 text-xs">▼</div>
+        </div>
+        <div id="protocolList" class="hidden mt-3 space-y-2 max-h-80 overflow-y-auto scrollbar-hide">
+      ` : `
+        <div class="flex items-center gap-3 mb-3">
+          <div class="bg-gradient-to-br from-emerald-500 to-teal-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+            <span class="text-white font-black text-sm">📋</span>
+          </div>
+          <div>
+            <p class="text-white font-black text-sm">Select Protocol</p>
+            <p class="text-slate-500 text-[10px]">${drugs.length} protocols available</p>
+          </div>
+        </div>
+        <div id="protocolList" class="space-y-2 max-h-80 overflow-y-auto scrollbar-hide">
+      `}
+        ${sortedAges.map(age => {
+          const colorKey = Object.keys(ageColors).find(k => age.includes(k));
+          const gradient = ageColors[colorKey] || 'from-slate-500 to-slate-600';
+          const sortedDrugs = ageGroups[age].sort((a,b) => a.indication.localeCompare(b.indication));
+          
+          return `
+          <div class="bg-slate-800/50 rounded-xl overflow-hidden border border-slate-700/30">
+            <div class="bg-gradient-to-r ${gradient} px-3 py-1.5 flex items-center gap-2">
+              <span class="text-[9px] font-black text-white/90 uppercase tracking-widest">${age}</span>
+              <span class="text-[9px] text-white/60 font-bold">${sortedDrugs.length}</span>
+            </div>
+            <div class="divide-y divide-slate-700/30">
+              ${sortedDrugs.map((m, i) => `
+                <button class="protocol-option w-full text-left px-3 py-2.5 hover:bg-slate-700/50 transition-all flex items-center gap-2"
+                  data-indication="${m.indication}" data-age="${m.age_group}" data-route="${m.route}">
+                  <div class="w-1.5 h-1.5 rounded-full bg-slate-600"></div>
+                  <div class="flex-1"><span class="text-xs text-slate-300 font-medium leading-tight">${m.indication}</span><span class="text-[10px] text-slate-500 ml-2">${m.route}</span></div>
+                </button>
+              `).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div id="drugForm" class="hidden space-y-3 mt-3"></div>`;
+
+  // دالة فتح/إغلاق القائمة
+  window.toggleProtocolList = function() {
+    const list = document.getElementById('protocolList');
+    if (list) {
+      list.classList.toggle('hidden');
+    }
+  };
+
+  // ربط أحداث الاختيار
+  document.querySelectorAll('.protocol-option').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const indication = this.getAttribute('data-indication');
+      const age = this.getAttribute('data-age');
+      const route = this.getAttribute('data-route');
+      const found = drugs.find(d => d.indication === indication && d.age_group === age && d.route === route);
+      if (found) {
+        selectedDrug = found;
+        if (selectedDrug && !selectedDrug.is_continuous && selectedDrug.route && selectedDrug.route.toLowerCase().includes('iv infusion')) {
+          selectedDrug.route = selectedDrug.route.replace(/IV infusion/i, 'IV intermittent infusion');
+        }
+        renderDrugForm();
+        const list = document.getElementById('protocolList');
+        if (list) list.classList.add('hidden');
+        renderDrugDetail();
+      }
+    });
+  });
+
+  if (selectedDrug) renderDrugForm();
+}
+
+
+function renderDrugForm() {
+  const formEl = document.getElementById('drugForm');
+  if (!formEl || !selectedDrug) return;
+  formEl.classList.remove('hidden');
+  formEl.innerHTML = `
+    <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 sticky top-0 z-10 mb-2">
+      <p class="text-white font-black text-sm leading-tight break-words">${selectedDrug.drug_name}</p>
+      <p class="text-slate-400 text-[10px] leading-tight break-words mt-0.5">${selectedDrug.indication}</p>
+      <p class="text-slate-500 text-[9px] uppercase font-bold mt-0.5">${selectedDrug.age_group} | ${selectedDrug.route}</p>
+    </div>
+    <div class="flex bg-slate-800 rounded-xl p-1 mb-3" id="calcModeTabs">
+      <button id="normalModeBtn" class="flex-1 py-2 text-xs font-black rounded-lg ${calcMode === 'normal' ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-400'} uppercase tracking-wider">Normal Calc</button>
+      <button id="reverseModeBtn" class="flex-1 py-2 text-xs font-black rounded-lg ${calcMode === 'reverse' ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-400'} uppercase tracking-wider">Reverse Calc</button>
+    </div>
+    <div class="p-3 bg-slate-900 rounded-xl border-l-4 border-emerald-500">
+      <p class="text-[10px] text-slate-500 uppercase font-black">Standard Dose Range</p>
+      <p class="text-emerald-400 font-black text-sm">${selectedDrug.min_dose} - ${selectedDrug.max_dose} ${selectedDrug.unit}</p>
+    </div>
+    ${getPrepInstruction(selectedDrug.display_note) ? `
+  <div class="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 flex items-start gap-2">
+    <span class="text-blue-400 text-sm">💧</span>
+    <div>
+      <span class="text-[9px] font-black text-blue-400 uppercase">Diluent / Preparation</span>
+      <p class="text-[10px] text-blue-300/80 mt-0.5">${getPrepInstruction(selectedDrug.display_note)}</p>
+    </div>
+  </div>
+` : ''}
+    ${calcMode === 'normal' ? `
+<!-- ===== وضع الحساب العادي (كما هو الآن) ===== -->
+<div class="grid grid-cols-2 gap-3">
+  <input id="weightInput" type="number" placeholder="Weight (kg)" class="bg-[#0f172a] border border-slate-600 h-12 rounded-xl text-emerald-400 font-black px-3 outline-none focus:ring-2 focus:ring-emerald-500">
+  <input id="doseInput" type="number" placeholder="Dose (${selectedDrug.unit})" class="bg-[#0f172a] border border-slate-600 h-12 rounded-xl font-black px-3 outline-none focus:ring-2 focus:ring-emerald-500" value="${selectedDrug.min_dose||''}">
+</div>
+<div class="grid grid-cols-2 gap-3">
+  <div class="relative">
+    <input id="amountInput" type="number" placeholder="Drug Amount" class="w-full bg-[#0f172a] border border-slate-600 h-12 rounded-xl text-blue-400 font-black px-3 pr-10 outline-none focus:ring-2 focus:ring-blue-500">
+    <span class="absolute right-3 top-3.5 text-[10px] font-black text-blue-500/70">${getBaseUnit(selectedDrug.unit)}</span>
+  </div>
+  <div class="relative">
+    <input id="volumeInput" type="number" placeholder="Total Volume" class="w-full bg-[#0f172a] border border-slate-600 h-12 rounded-xl text-blue-400 font-black px-3 pr-10 outline-none focus:ring-2 focus:ring-blue-500">
+    <span class="absolute right-3 top-3.5 text-[10px] font-black text-blue-500/70">ML</span>
+  </div>
+</div>
+` : selectedDrug && selectedDrug.is_continuous ? `
+<!-- ===== وضع الحساب العكسي للجرعات المستمرة ===== -->
+<p class="text-[10px] font-black text-amber-400 uppercase text-center">Reverse Infusion: Enter Pump Rate → Get Actual Dose</p>
+<div class="grid grid-cols-2 gap-3">
+  <input id="weightInput" type="number" placeholder="Weight (kg)" class="bg-[#0f172a] border border-slate-600 h-12 rounded-xl text-emerald-400 font-black px-3 outline-none focus:ring-2 focus:ring-emerald-500">
+  <input id="rateInput" type="number" placeholder="Pump Rate (mL/hr)" class="bg-[#0f172a] border border-slate-600 h-12 rounded-xl font-black px-3 outline-none focus:ring-2 focus:ring-emerald-500">
+</div>
+<div class="grid grid-cols-2 gap-3">
+  <div class="relative">
+    <input id="amountInput" type="number" placeholder="Drug Amount" class="w-full bg-[#0f172a] border border-slate-600 h-12 rounded-xl text-blue-400 font-black px-3 pr-10 outline-none focus:ring-2 focus:ring-blue-500">
+    <span class="absolute right-3 top-3.5 text-[10px] font-black text-blue-500/70">${getBaseUnit(selectedDrug.unit)}</span>
+  </div>
+  <div class="relative">
+    <input id="volumeInput" type="number" placeholder="Total Volume" class="w-full bg-[#0f172a] border border-slate-600 h-12 rounded-xl text-blue-400 font-black px-3 pr-10 outline-none focus:ring-2 focus:ring-blue-500">
+    <span class="absolute right-3 top-3.5 text-[10px] font-black text-blue-500/70">ML</span>
+  </div>
+</div>
+` : `
+<!-- ===== وضع الحساب العكسي للجرعات المقطوعة ===== -->
+<p class="text-[10px] font-black text-amber-400 uppercase text-center">Reverse Bolus: Enter Desired Dose → Get Volume to Draw</p>
+<div class="grid grid-cols-2 gap-3">
+  <input id="weightInput" type="number" placeholder="Weight (kg)" class="bg-[#0f172a] border border-slate-600 h-12 rounded-xl text-emerald-400 font-black px-3 outline-none focus:ring-2 focus:ring-emerald-500">
+  <input id="reverseDoseInput" type="number" placeholder="Desired Dose (${getBaseUnitOnly(selectedDrug.unit)})" class="bg-[#0f172a] border border-slate-600 h-12 rounded-xl font-black px-3 outline-none focus:ring-2 focus:ring-emerald-500">
+</div>
+<div class="grid grid-cols-2 gap-3">
+  <div class="relative">
+    <input id="amountInput" type="number" placeholder="Drug Amount" class="w-full bg-[#0f172a] border border-slate-600 h-12 rounded-xl text-blue-400 font-black px-3 pr-10 outline-none focus:ring-2 focus:ring-blue-500">
+    <span class="absolute right-3 top-3.5 text-[10px] font-black text-blue-500/70">${getBaseUnit(selectedDrug.unit)}</span>
+  </div>
+  <div class="relative">
+    <input id="volumeInput" type="number" placeholder="Total Volume" class="w-full bg-[#0f172a] border border-slate-600 h-12 rounded-xl text-blue-400 font-black px-3 pr-10 outline-none focus:ring-2 focus:ring-blue-500">
+    <span class="absolute right-3 top-3.5 text-[10px] font-black text-blue-500/70">ML</span>
+  </div>
+</div>
+`}
+    <p id="doseWarningMsg" class="text-[10px] font-black text-center uppercase hidden"></p>
+    <button id="calcBtn" class="w-full h-14 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg uppercase tracking-widest rounded-xl shadow-lg">⚕️ CALCULATE</button>
+    <button id="clearBtn" class="w-full h-10 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-sm uppercase tracking-widest rounded-xl mt-2 transition-all">✕ Clear Fields</button>`;
+
+  // ربط أزرار التبديل
+  document.getElementById('normalModeBtn').addEventListener('click', function() {
+    calcMode = 'normal';
+    this.className = 'flex-1 py-2 text-xs font-black rounded-lg bg-emerald-600 text-white uppercase tracking-wider';
+    document.getElementById('reverseModeBtn').className = 'flex-1 py-2 text-xs font-black rounded-lg bg-slate-700 text-slate-400 uppercase tracking-wider';
+    renderDrugForm();
+  });
+  document.getElementById('reverseModeBtn').addEventListener('click', function() {
+    calcMode = 'reverse';
+    this.className = 'flex-1 py-2 text-xs font-black rounded-lg bg-emerald-600 text-white uppercase tracking-wider';
+    document.getElementById('normalModeBtn').className = 'flex-1 py-2 text-xs font-black rounded-lg bg-slate-700 text-slate-400 uppercase tracking-wider';
+    renderDrugForm();
+  });
+
+  const doseInput = document.getElementById('doseInput');
+  const calcBtn = document.getElementById('calcBtn');
+  const warningMsg = document.getElementById('doseWarningMsg');
+
+  if (calcBtn) {
+  calcBtn.addEventListener('click', ()=>{
+    const weight = parseFloat(document.getElementById('weightInput').value);
+    const amount = parseFloat(document.getElementById('amountInput').value) || 0;
+    const volume = parseFloat(document.getElementById('volumeInput').value) || 0;
+
+    if (calcMode === 'reverse') {
+      // ===== وضع الحساب العكسي =====
+      if (!selectedDrug) return;
+      if (!weight || !amount || !volume) return;
+
+      let reverseResult;
+      if (selectedDrug.is_continuous) {
+        // عكسي للجرعات المستمرة: Rate → Dose
+        const rate = parseFloat(document.getElementById('rateInput').value);
+        if (!rate) return;
+        reverseResult = engine.reverseInfusion({
+          rate, weight, unit: selectedDrug.unit,
+          totalDrugAmount: amount, totalVolume: volume, totalDrugUnit: selectedDrug.unit
+        });
+        if (!reverseResult.error) {
+          showResults({
+            calculatedDose: parseFloat(reverseResult.dose),
+            displayMode: 'Actual Dose',
+            roundedResult: parseFloat(reverseResult.dose),
+            rawResult: reverseResult.raw,
+            warnings: []
+          }, weight, reverseResult.dose);
+        } else {
+          showResults({ error: reverseResult.error }, weight, 0);
+        }
+      } else {
+        // عكسي للجرعات المقطوعة: Dose → Volume
+        const reverseDoseInput = document.getElementById('reverseDoseInput');
+        const desiredDose = parseFloat(reverseDoseInput.value);
+        if (!desiredDose) return;
+
+        // التحقق من الجرعة قبل الحساب (مطابق للحاسبة العادية)
+        const reverseDoseWarningMsg = document.getElementById('doseWarningMsg');
+        reverseDoseInput.classList.remove('shake','pulse-yellow','border-red-500','ring-2','ring-red-500','border-amber-500','ring-amber-500');
+        if (reverseDoseWarningMsg) reverseDoseWarningMsg.classList.add('hidden');
+
+        if (selectedDrug.max_dose && desiredDose > selectedDrug.max_dose) {
+          reverseDoseInput.classList.add('shake','border-red-500','ring-2','ring-red-500');
+          if (reverseDoseWarningMsg) {
+            reverseDoseWarningMsg.classList.remove('hidden');
+            reverseDoseWarningMsg.textContent = "DANGER: Dose exceeds Max! (Max: " + selectedDrug.max_dose + " " + selectedDrug.unit + ")";
+            reverseDoseWarningMsg.className = 'text-[10px] font-black text-center uppercase text-red-400 mt-2';
+          }
+          playBeep('error');
+          return;
+        } else if (selectedDrug.min_dose && desiredDose < selectedDrug.min_dose) {
+          reverseDoseInput.classList.add('pulse-yellow','border-amber-500','ring-2','ring-amber-500');
+          if (reverseDoseWarningMsg) {
+            reverseDoseWarningMsg.classList.remove('hidden');
+            reverseDoseWarningMsg.textContent = "Low Dose Alert (Min: " + selectedDrug.min_dose + " " + selectedDrug.unit + ")";
+            reverseDoseWarningMsg.className = 'text-[10px] font-black text-center uppercase text-amber-400 mt-2';
+          }
+          playBeep('warning');
+        }
+
+        reverseResult = engine.reverseBolus({
+          dose: desiredDose, weight, unit: selectedDrug.unit,
+          totalDrugAmount: amount, totalVolume: volume, totalDrugUnit: selectedDrug.unit,
+          maxDose: selectedDrug.max_dose, minDose: selectedDrug.min_dose
+        });
+
+        if (reverseResult.error) {
+          // عرض الخطأ كرسالة حمراء
+          showResults({ error: reverseResult.error }, weight, desiredDose);
+        } else {
+          showResults({
+            calculatedDose: parseFloat(reverseResult.doseGiven),
+            displayMode: 'Dose Volume (mL)',
+            roundedResult: parseFloat(reverseResult.volume),
+            rawResult: reverseResult.raw,
+            warnings: reverseResult.warning ? [reverseResult.warning] : []
+          }, weight, desiredDose);
+        }
+      }
+    } else {
+      // ===== وضع الحساب العادي (الكود القديم يبقى كما هو) =====
+      const dose = parseFloat(doseInput.value);
+      if (!weight || !dose) return;
+
+      doseInput.classList.remove('shake','pulse-yellow','border-red-500','ring-2','ring-red-500','border-amber-500','ring-amber-500');
+      warningMsg.classList.add('hidden');
+
+      if (dose > selectedDrug.max_dose) {
+        doseInput.classList.add('shake','border-red-500','ring-2','ring-red-500');
+        warningMsg.classList.remove('hidden');
+        warningMsg.textContent = `⚠️ تجاوز الحد الأعلى المسموح (Max: ${selectedDrug.max_dose} ${selectedDrug.unit})`;
+        warningMsg.className = 'text-[10px] font-black text-center uppercase text-red-400 mt-2';
+        playBeep('error');
+        return;
+      } else if (dose < selectedDrug.min_dose) {
+        doseInput.classList.add('pulse-yellow','border-amber-500','ring-2','ring-amber-500');
+        warningMsg.classList.remove('hidden');
+        warningMsg.textContent = `💡 جرعة منخفضة عن الحد الأدنى المعتاد (Min: ${selectedDrug.min_dose}) - Renal/Hepatic Adjustment?`;
+        warningMsg.className = 'text-[10px] font-black text-center uppercase text-amber-400 mt-2';
+        playBeep('warning');
+      }
+
+      const result = engine.calculate({
+        dose, weight, unit: selectedDrug.unit,
+        totalDrugAmount: amount, totalVolume: volume, totalDrugUnit: selectedDrug.unit,
+        maxDose: selectedDrug.max_dose, isContinuous: selectedDrug.is_continuous
+      });
+
+      showResults(result, weight, dose);
+      historyLog.unshift({ id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), drugName: selectedDrug.drug_name, indication: selectedDrug.indication, weight: String(weight), dose: String(dose), result: result.roundedResult?.toString()||'', unit: result.displayMode });
+      historyLog = historyLog.slice(0,20); saveHistory();
+    }
+  });
+}
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    document.getElementById('weightInput').value = '';
+    const d = document.getElementById('doseInput'); if(d) d.value = '';
+    const r = document.getElementById('rateInput'); if(r) r.value = '';
+    const rd = document.getElementById('reverseDoseInput'); if(rd) rd.value = '';
+    document.getElementById('amountInput').value = '';
+    document.getElementById('volumeInput').value = '';
+    document.getElementById('resultsPanel').classList.add('hidden');
+    document.getElementById('placeholderPanel').classList.remove('hidden');
+    const warningMsg = document.getElementById('doseWarningMsg');
+    if (warningMsg) warningMsg.classList.add('hidden');
+  });
+}
+
+function showResults(result, weight, dose) {
+  document.getElementById('placeholderPanel').classList.add('hidden');
+  document.getElementById('historyPanel').classList.add('hidden');
+  const panel = document.getElementById('resultsPanel');
+  panel.classList.remove('hidden');
+  if (result.error) { panel.innerHTML = `<div class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 font-bold">⚠️ ${result.error}</div>`; return; }
+const noteText = selectedDrug?.display_note || '';
+  const freqMatch = noteText.match(/(every\s+[\d\-]+\s*h(?:ours?)?|q\d+h|[\d\-]+\s*times?\s*(?:a|per)?\s*day|once daily|twice daily|three times a day|bid|tid|qid|every\s+\d+\s*hours?)/i);
+  const frequencyText = freqMatch ? freqMatch[0] : (noteText ? noteText.split('.')[0].trim() : 'As prescribed');
+  const divMatch = noteText.match(/in\s+(\d+)\s+divided\s+doses/i);
+  const divCount = divMatch ? parseInt(divMatch[1]) : null;
+  const isTotal = divCount !== null;
+  const singleDoseVal = isTotal ? (result.calculatedDose / divCount).toFixed(3) : result.calculatedDose?.toFixed(3);
+  const isReverse = calcMode === 'reverse';
+  const calculatedDoseDisplay = result.calculatedDose?.toFixed(4) || '0';
+  
+  panel.innerHTML = `
+    ${isTotal ? `<div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-sm font-bold mb-4">⚠️ Total daily dose (÷${divCount}) = Single dose: ${singleDoseVal} ${getBaseUnitOnly(selectedDrug.unit)}</div>` : ''}
+    <div class="bg-slate-800 rounded-2xl p-5 border border-slate-700 space-y-4">
+      ${isReverse && selectedDrug.is_continuous ? `
+      <div class="bg-slate-900 p-4 rounded-xl border-l-4 border-blue-500">
+        <span class="text-[10px] font-black text-blue-400 uppercase">Reverse Calculated Dose</span>
+        <div class="text-2xl font-black text-white">
+          ${calculatedDoseDisplay} <span class="text-sm font-normal text-slate-300">${selectedDrug.unit}</span>
+        </div>
+      </div>
+      ` : `
+      <div class="bg-slate-900 p-4 rounded-xl border-l-4 border-blue-500">
+        <span class="text-[10px] font-black text-blue-400 uppercase">Calculated Dose</span>
+        <div class="text-2xl font-black text-white">${singleDoseVal} <span class="text-sm text-slate-300">${getBaseUnitOnly(selectedDrug.unit)}</span></div>
+      </div>
+      `}
+      <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 mb-2">
+        <span class="text-[9px] font-black text-slate-500 uppercase">Formula</span>
+        <p class="text-[10px] text-slate-400 font-mono mt-1">
+          Dose × Weight = ${result.calculatedDose.toFixed(2)} ${getBaseUnitOnly(selectedDrug.unit)}
+        </p>
+      </div>
+${selectedDrug.is_continuous ? (isReverse ? '' : `
+  <div class="bg-slate-900 p-4 rounded-xl border-l-4 border-emerald-500">
+    <span class="text-[10px] font-black text-emerald-400 uppercase">${result.displayMode}</span>
+    <div class="flex items-center justify-between">
+      <div class="text-3xl font-black text-emerald-400">${result.roundedResult} <span class="text-lg text-slate-300">${result.displayMode.includes('Rate')?'mL/hr':'mL'}</span></div>
+      <div class="text-right"><span class="block text-[8px] text-slate-500 font-mono">RAW</span><span class="text-[10px] font-mono text-emerald-600 font-bold">${result.rawResult?.toFixed(8)}</span></div>
+    </div>
+  </div>
+`) : (selectedDrug.route.toLowerCase().includes('iv') || selectedDrug.route.toLowerCase().includes('intravenous') || selectedDrug.route.toLowerCase().includes('injection') ? `
+  <div class="bg-slate-900 p-4 rounded-xl border-l-4 border-emerald-500 mt-3">
+    <span class="text-[10px] font-black text-emerald-400 uppercase">${isReverse ? 'Volume to Draw' : 'Volume to Administer'}</span>
+    <div class="flex items-center justify-between">
+      <div class="text-3xl font-black text-emerald-400">${result.roundedResult} <span class="text-lg text-slate-300">mL</span></div>
+      <div class="text-right"><span class="block text-[8px] text-slate-500 font-mono">RAW</span><span class="text-[10px] font-mono text-emerald-600 font-bold">${result.rawResult?.toFixed(8)}</span></div>
+    </div>
+  </div>
+  <div class="grid grid-cols-2 gap-3 mt-2">
+    <div class="bg-slate-900 p-3 rounded-xl border-l-4 border-amber-500">
+      <span class="text-[10px] font-black text-amber-400 uppercase">Route</span>
+      <p class="text-sm text-slate-300 font-medium mt-1">${selectedDrug.route}</p>
+    </div>
+    <div class="bg-slate-900 p-3 rounded-xl border-l-4 border-blue-500">
+      <span class="text-[10px] font-black text-blue-400 uppercase">Frequency</span>
+      <p class="text-sm text-slate-300 font-medium mt-1">${selectedDrug.display_note || 'As prescribed'}</p>
+    </div>
+  </div>
+` : `
+  <div class="grid grid-cols-2 gap-3 mt-2">
+    <div class="bg-slate-900 p-3 rounded-xl border-l-4 border-amber-500">
+      <span class="text-[10px] font-black text-amber-400 uppercase">Route</span>
+      <p class="text-sm text-slate-300 font-medium mt-1">${selectedDrug.route}</p>
+    </div>
+    <div class="bg-slate-900 p-3 rounded-xl border-l-4 border-blue-500">
+      <span class="text-[10px] font-black text-blue-400 uppercase">Frequency</span>
+      <p class="text-sm text-slate-300 font-medium mt-1">${selectedDrug.display_note || 'As prescribed'}</p>
+    </div>
+  </div>
+`)}
+      ${(result.warnings||[]).map(w=>`<div class="bg-red-600 p-4 rounded-xl shadow-lg animate-pulse text-white font-black text-sm uppercase">⚠️ ${w}</div>`).join('')}
+    </div>`;
+}
+
+const auditBtnEl2 = document.getElementById('auditBtn');
+if (auditBtnEl2) {
+auditBtnEl2.addEventListener('click', async () => {
+  const errors = [];
+  const warnings = [];
+  const testWeight = 10;
+  
+  for (const med of medications) {
+    const midDose = (med.min_dose + med.max_dose) / 2;
+    
+    try {
+      const r = engine.calculate({
+        dose: midDose, weight: testWeight, unit: med.unit,
+        totalDrugAmount: 1000, totalVolume: 50, totalDrugUnit: med.unit,
+        maxDose: med.max_dose, isContinuous: med.is_continuous
+      });
+      
+      if (r.rawResult === null || isNaN(r.rawResult)) {
+        errors.push(`❌ ${med.drug_name} | NaN result`);
+      } else if (!isFinite(r.rawResult)) {
+        errors.push(`❌ ${med.drug_name} | Infinity`);
+      }
+      
+      if (r.displayMode === '' || r.displayMode === null) {
+        errors.push(`❌ ${med.drug_name} | Empty displayMode`);
+      }
+      
+      const overDose = med.max_dose * 2;
+      const r2 = engine.calculate({
+        dose: overDose, weight: testWeight, unit: med.unit,
+        totalDrugAmount: 1000, totalVolume: 50, totalDrugUnit: med.unit,
+        maxDose: med.max_dose, isContinuous: med.is_continuous
+      });
+      if (r2.warnings.length === 0 && med.max_dose > 0) {
+        warnings.push(`⚠️ ${med.drug_name}: Should warn on overdose`);
+      }
+    } catch(e) {
+      errors.push(`❌ ${med.drug_name} | Exception: ${e.message}`);
+    }
+  }
+  
+  let report = `=== AUDIT REPORT ===\n\nTotal: ${medications.length} drugs\nErrors: ${errors.length}\nWarnings: ${warnings.length}\n\n`;
+  if (errors.length > 0) report += `--- ERRORS ---\n${errors.join('\n')}\n\n`;
+  if (warnings.length > 0) report += `--- WARNINGS ---\n${warnings.join('\n')}\n\n`;
+  if (errors.length === 0 && warnings.length === 0) report += `✅ ALL ${medications.length} MEDICATIONS PASSED!\n`;
+  
+  alert(report);
+  console.log(report);
+});
+}
+
+// ========== BOOT ==========
+loadMedications();
+
+
+
+
+
+
+
+function showReferences() {
+  const modal = document.createElement('div');
+  modal.innerHTML = `
+    <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn 0.3s ease-out;" onclick="this.remove()">
+      <div style="background:#1e293b;border-radius:24px;padding:24px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;border:1px solid #334155;" onclick="event.stopPropagation()">
+        <h2 style="color:#10b981;font-size:18px;font-weight:900;margin-bottom:16px;">📚 Medical References</h2>
+        <div style="color:#cbd5e1;font-size:13px;line-height:2;">
+          <p>✅ <b>BNFC</b> (British National Formulary for Children) 2024-2025</p>
+          <p>✅ <b>NICE Guidelines</b></p>
+          <p>✅ <b>RCUK NLS</b> (Newborn Life Support) 2021</p>
+          <p>✅ <b>RCUK Anaphylaxis Guidelines</b></p>
+          <p>✅ <b>PALS</b> (Pediatric Advanced Life Support) 2020</p>
+          <p>✅ <b>Surviving Sepsis Campaign</b></p>
+        </div>
+        <button style="margin-top:16px;width:100%;background:#334155;color:white;padding:12px;border-radius:12px;font-weight:bold;border:none;cursor:pointer;" onclick="this.closest('div').parentElement.remove()">Close</button>
+      </div>
+      <style>@keyframes fadeIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}</style>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function showDedication() {
+  const modal = document.createElement('div');
+  modal.innerHTML = `
+    <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn 0.3s ease-out;" onclick="this.remove()">
+      <div style="background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:24px;padding:32px 24px;max-width:420px;width:100%;text-align:center;border:1px solid #334155;" onclick="event.stopPropagation()">
+        
+        <div style="width:120px;height:120px;margin:0 auto 16px;position:relative;">
+          <svg viewBox="0 0 100 100" style="width:100%;height:100%;">
+            <path d="M5,50 L25,50 L35,20 L45,80 L55,30 L65,70 L75,50 L95,50" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="200" stroke-dashoffset="200">
+              <animate attributeName="stroke-dashoffset" from="200" to="0" dur="1.5s" repeatCount="indefinite" />
+            </path>
+          </svg>
+        </div>
+
+        <p style="color:#ffffff;font-size:24px;font-weight:900;margin-top:16px;line-height:1.8;font-family:'Cairo',sans-serif;direction:rtl;">لا تنسوني ووالدي<br>من صالح دعائكم</p>
+        <p style="color:#10b981;font-size:20px;font-weight:700;margin-top:20px;font-family:'Cairo',sans-serif;direction:rtl;">🩺 أخوكم<br>أحمد القضاه</p>
+
+        <button style="margin-top:20px;width:100%;background:#334155;color:white;padding:12px;border-radius:12px;font-weight:bold;border:none;cursor:pointer;" onclick="this.closest('div').parentElement.remove()">Close</button>
+      </div>
+      <style>@keyframes fadeIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}</style>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+</script>
+</body>
+</html>
