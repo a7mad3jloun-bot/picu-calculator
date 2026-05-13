@@ -1,0 +1,3 @@
+-keep class android.webkit.** { *; }
+-renamesourcefileattribute SourceFile
+-keepattributes SourceFile,LineNumberTable
